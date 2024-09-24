@@ -127,8 +127,11 @@ struct page *page_lookup(struct supplemental_page_table *spt, const void *va)
 {
 	struct page p;
 	struct hash_elem *e;
+
+	lock_acquire(&spt->sptLock);
 	p.va = va;
 	e = hash_find(&spt->table, &p.hash_elem);
+	lock_release(&spt->sptLock);
 	return e != NULL ? hash_entry(e, struct page, hash_elem) : NULL;
 }
 
@@ -142,9 +145,11 @@ bool spt_insert_page(struct supplemental_page_table *spt UNUSED,
 					 struct page *page UNUSED)
 {
 	int succ = false;
+	lock_acquire(&spt->sptLock);
 	/* TODO: Fill this function. */
 	if (hash_insert(&spt->table, &page->hash_elem) == NULL)
 		succ = true;
+	lock_release(&spt->sptLock);
 	return succ;
 }
 
@@ -215,13 +220,13 @@ bool vm_try_handle_fault(struct intr_frame *f UNUSED, void *addr,
 	/* TODO: Validate the fault */
 	if ((!user) || (!not_present))
 	{
-		thread_exit();
+		return false;
 	}
 	/* TODO: Your code goes here */
 	page = spt_find_page(spt, addr - pg_ofs(addr));
 	if (page == NULL)
 	{
-		thread_exit();
+		return false;
 	}
 	return vm_do_claim_page(page);
 }
@@ -286,7 +291,7 @@ void supplemental_page_table_init(struct supplemental_page_table *spt)
 {
 	//	준용 추가
 	hash_init(&spt->table, page_hash, page_less, NULL);
-	// lock_init(&spt->sptLock);
+	lock_init(&spt->sptLock);
 }
 
 /* Copy supplemental page table from src to dst */
@@ -294,9 +299,15 @@ bool supplemental_page_table_copy(struct supplemental_page_table *dst,
 								  struct supplemental_page_table *src)
 {
 	struct hash_iterator hashIter;
+	bool succ = false;
+
+	lock_acquire(&dst->sptLock);
+	lock_acquire(&src->sptLock);
+
 	hash_first(&hashIter, src);
 
-	while (hash_next(&hashIter) != NULL) {
+	while (hash_next(&hashIter) != NULL)
+	{
 		struct page *newPage = malloc(sizeof(struct page));
 		struct page *source = hash_entry(hash_cur(&hashIter), struct page, hash_elem);
 
@@ -320,31 +331,35 @@ bool supplemental_page_table_copy(struct supplemental_page_table *dst,
 		{
 			goto err;
 		}
-		if(!vm_do_claim_page(newPage)){
+		if (!vm_do_claim_page(newPage))
+		{
 			goto err;
 		}
 	}
 
-	return true;
+	succ = true;
 err:
-	supplemental_page_table_kill(dst);
-	return false;
+	lock_release(&src->sptLock);
+	lock_release(&dst->sptLock);
+	if (!succ)
+	{
+		supplemental_page_table_kill(dst);
+	}
+	return succ;
+}
+
+void killSptEntry(struct hash_elem *elem, void *aux UNUSED)
+{
+	struct page *victim = hash_entry(elem, struct page, hash_elem);
+	vm_dealloc_page(victim);
 }
 
 /* Free the resource hold by the supplemental page table */
-void supplemental_page_table_kill(struct supplemental_page_table *spt UNUSED)
+void supplemental_page_table_kill(struct supplemental_page_table *spt)
 {
 	/* TODO: Destroy all the supplemental_page_table hold by thread and
 	 * TODO: writeback all the modified contents to the storage. */
-	// lock_acquire(&spt->sptLock);
-
-	// struct hash_iterator hashIter;
-	// hash_first(&hashIter, &spt->table);
-	// while (hash_next(&hashIter) != NULL) {
-	// 	struct page *victim = hash_entry(hash_cur(&hashIter), struct page, hash_elem);
-	// 	destroy(victim);
-	// }
-	// hash_destroy(&spt->table, NULL);
-
-	// lock_release(&spt->sptLock);
+	lock_acquire(&spt->sptLock);
+	hash_destroy(&spt->table, (hash_action_func *)killSptEntry);
+	lock_release(&spt->sptLock);
 }

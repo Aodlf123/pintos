@@ -73,5 +73,4 @@ uninit_destroy (struct page *page) {
 		case VM_FILE:
 			break;
 	}
-	free(page);
 }
