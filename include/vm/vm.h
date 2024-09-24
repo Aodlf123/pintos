@@ -49,6 +49,7 @@ struct page {
 
 	/* Your implementation 즉, 준용 추가*/
 	struct hash_elem hash_elem;
+	bool writable;
 
 	/* Per-type data are binded into the union.
 	 * Each function automatically detects the current union */
@@ -91,6 +92,15 @@ struct supplemental_page_table {
 	//	준용 추가
 	struct hash table;
 	struct lock sptLock;
+};
+
+//	준용 추가
+struct fileReader
+{
+	struct file *target;
+	size_t pageReadBytes;
+	size_t pageZeroBytes;
+	off_t offset;
 };
 
 #include "threads/thread.h"

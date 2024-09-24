@@ -23,6 +23,12 @@
         "lib.h": "c",
         "thread.h": "c",
         "mmu.h": "c",
-        "hash.h": "c"
+        "hash.h": "c",
+        "vaddr.h": "c",
+        "uninit.h": "c",
+        "vm.h": "c",
+        "stdbool.h": "c",
+        "stddef.h": "c",
+        "stdarg.h": "c"
     }
 }

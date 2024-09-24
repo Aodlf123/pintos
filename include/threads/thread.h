@@ -31,7 +31,7 @@ typedef int tid_t;
 
 //	준용 추가
 #define KERN_EXIT 0x2347861
-#define FD_MAX 40
+#define FD_MAX 30
 
 /* A kernel thread or user process.
  *

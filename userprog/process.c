@@ -137,7 +137,7 @@ duplicate_pte(uint64_t *pte, void *va, void *aux)
 		current->pml4 = NULL;
 		pml4_activate(NULL);
 		pml4_destroy(pml4);
-		
+
 		palloc_free_page(newpage);
 		return false;
 	}
@@ -528,11 +528,9 @@ load(const char *file_name, struct intr_frame *if_)
 			break;
 		}
 	}
-
 	/* Set up stack. */
 	if (!setup_stack(if_))
 		goto done;
-
 	/* Start address. */
 	if_->rip = ehdr.e_entry;
 
@@ -742,17 +740,28 @@ install_page(void *upage, void *kpage, bool writable)
 	 * address, then map our page there. */
 	return (pml4_get_page(t->pml4, upage) == NULL && pml4_set_page(t->pml4, upage, kpage, writable));
 }
+//	준용 추가
 #else
 /* From here, codes will be used after project 3.
  * If you want to implement the function for only project 2, implement it on the
  * upper block. */
 
 static bool
-lazy_load_segment(struct page *page, void *aux)
+lazy_load_segment(struct page *page, struct fileReader *aux)
 {
 	/* TODO: Load the segment from the file */
 	/* TODO: This called when the first page fault occurs on address VA. */
 	/* TODO: VA is available when calling this function. */
+	struct fileReader *fr = aux;
+	file_seek(fr->target, fr->offset);
+	if (file_read(fr->target, page->frame->kva, fr->pageReadBytes) != (int)fr->pageReadBytes)
+	{
+		palloc_free_page(page->frame->kva);
+		return false;
+	}
+	memset(page->frame->kva + fr->pageReadBytes, 0, fr->pageZeroBytes);
+	free(fr);
+	return true;
 }
 
 /* Loads a segment starting at offset OFS in FILE at address
@@ -786,15 +795,26 @@ load_segment(struct file *file, off_t ofs, uint8_t *upage,
 		size_t page_zero_bytes = PGSIZE - page_read_bytes;
 
 		/* TODO: Set up aux to pass information to the lazy_load_segment. */
-		void *aux = NULL;
+		//	준용 추가
+		struct fileReader *aux = NULL;
+		aux = malloc(sizeof(struct fileReader));
+		aux->target = file;
+		aux->pageReadBytes = page_read_bytes;
+		aux->pageZeroBytes = page_zero_bytes;
+		aux->offset = ofs;
+
 		if (!vm_alloc_page_with_initializer(VM_ANON, upage,
 											writable, lazy_load_segment, aux))
+		{
 			return false;
+		}
 
 		/* Advance. */
 		read_bytes -= page_read_bytes;
 		zero_bytes -= page_zero_bytes;
 		upage += PGSIZE;
+		//	준용 추가
+		ofs += page_read_bytes;
 	}
 	return true;
 }
@@ -810,7 +830,17 @@ setup_stack(struct intr_frame *if_)
 	 * TODO: If success, set the rsp accordingly.
 	 * TODO: You should mark the page is stack. */
 	/* TODO: Your code goes here */
-
+	if (!vm_alloc_page(VM_ANON | VM_MARKER_0, stack_bottom, true))
+	{
+		goto err;
+	}
+	if (!vm_claim_page(stack_bottom))
+	{
+		goto err;
+	}
+	if_->rsp = USER_STACK;
+	success = true;
+err:
 	return success;
 }
 #endif /* VM */
