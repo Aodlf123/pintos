@@ -44,7 +44,7 @@ pass tests/userprog/exec-once
 pass tests/userprog/exec-arg
 pass tests/userprog/exec-boundary
 pass tests/userprog/exec-missing
-FAIL tests/userprog/exec-bad-ptr
+pass tests/userprog/exec-bad-ptr
 pass tests/userprog/exec-read
 pass tests/userprog/wait-simple
 pass tests/userprog/wait-twice

@@ -324,8 +324,8 @@ void process_exit(void)
 			file_close(curr->descriptors[i]);
 		}
 	}
-
-	file_close(curr->execFile);
+	if (curr->execFile != NULL)
+		file_close(curr->execFile);
 }
 
 /* Free the current process's resources. */
