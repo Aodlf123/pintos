@@ -80,7 +80,9 @@ put_user(uint8_t *udst, uint8_t byte)
 void isLegalAddr(void *ptr)
 {
 	struct thread *th = thread_current();
-	if (is_kernel_vaddr(ptr) || ptr == NULL || pml4_get_page(th->pml4, ptr) == NULL)
+	if (is_kernel_vaddr(ptr) || ptr == NULL
+		//  || pml4_get_page(th->pml4, pg_round_down(ptr)) == NULL
+	)
 	{
 		exit(-1);
 	}
@@ -98,7 +100,8 @@ tid_t fork(const char *thread_name, struct intr_frame *frame)
 	enum intr_level old_intr = intr_disable();
 	thread_block();
 	intr_set_level(old_intr);
-	if (frame->R.rax == TID_ERROR) {
+	if (frame->R.rax == TID_ERROR)
+	{
 		return TID_ERROR;
 	}
 	return returnPid;

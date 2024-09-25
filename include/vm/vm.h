@@ -91,7 +91,6 @@ struct page_operations {
 struct supplemental_page_table {
 	//	준용 추가
 	struct hash table;
-	struct lock sptLock;
 };
 
 //	준용 추가

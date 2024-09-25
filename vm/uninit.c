@@ -68,7 +68,6 @@ uninit_destroy (struct page *page) {
 	//	여기 더해야함
 	switch (VM_TYPE(uninit->type)) {
 		case VM_ANON:
-			free(uninit->aux);
 			break;
 		case VM_FILE:
 			break;

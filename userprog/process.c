@@ -170,6 +170,7 @@ __do_fork(void *aux)
 		goto error;
 
 	process_activate(current);
+
 #ifdef VM
 	supplemental_page_table_init(&current->spt);
 	if (!supplemental_page_table_copy(&current->spt, &parent->spt))
@@ -760,7 +761,10 @@ lazy_load_segment(struct page *page, struct fileReader *aux)
 		return false;
 	}
 	memset(page->frame->kva + fr->pageReadBytes, 0, fr->pageZeroBytes);
-	free(fr);
+	if (thread_current()->parent == NULL)
+	{
+		free(fr);
+	}
 	return true;
 }
 
