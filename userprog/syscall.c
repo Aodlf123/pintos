@@ -173,6 +173,10 @@ int filesize(int fd)
 int read(int fd, void *buffer, unsigned size)
 {
 	isLegalAddr(buffer);
+	#ifdef VM
+	if (!spt_find_page(&thread_current()->spt, pg_round_down(buffer))->writable)
+		exit(-1);
+	#endif
 	if (isFileOpened(fd))
 	{
 		struct file *target = thread_current()->descriptors[fd];

@@ -834,7 +834,7 @@ setup_stack(struct intr_frame *if_)
 	 * TODO: If success, set the rsp accordingly.
 	 * TODO: You should mark the page is stack. */
 	/* TODO: Your code goes here */
-	if (!vm_alloc_page(VM_ANON | VM_MARKER_0, stack_bottom, true))
+	if (!vm_alloc_page(VM_ANON, stack_bottom, true))
 	{
 		goto err;
 	}
@@ -843,6 +843,7 @@ setup_stack(struct intr_frame *if_)
 		goto err;
 	}
 	if_->rsp = USER_STACK;
+	thread_current()->stackBottom = stack_bottom;
 	success = true;
 err:
 	return success;

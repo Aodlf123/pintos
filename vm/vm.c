@@ -198,8 +198,17 @@ vm_get_frame(void)
 
 /* Growing the stack. */
 static void
-vm_stack_growth(void *addr UNUSED)
+vm_stack_growth(void *addr)
 {
+	uint64_t tempBottom = thread_current()->stackBottom;
+	void *newBottom = pg_round_down(addr);
+	while (tempBottom != newBottom && tempBottom > USER_STACK - STACK_LIMIT)
+	{
+		tempBottom -= PGSIZE;
+		vm_alloc_page(VM_ANON, tempBottom, true);
+		vm_claim_page(tempBottom);
+	}
+	thread_current()->stackBottom = newBottom;
 }
 
 /* Handle the fault on write_protected page */
@@ -214,7 +223,6 @@ bool vm_try_handle_fault(struct intr_frame *f UNUSED, void *addr,
 {
 	struct supplemental_page_table *spt = &thread_current()->spt;
 	struct page *page = NULL;
-	// printf("are you come here??\n\n");
 
 	/* TODO: Validate the fault */
 	if (is_kernel_vaddr(addr) || (!not_present) || addr == NULL || addr > USER_STACK)
@@ -225,6 +233,11 @@ bool vm_try_handle_fault(struct intr_frame *f UNUSED, void *addr,
 	page = spt_find_page(spt, addr - pg_ofs(addr));
 	if (page == NULL)
 	{
+		if (addr > USER_STACK - STACK_LIMIT && addr >= f->rsp - 8)
+		{
+			vm_stack_growth(addr);
+			return true;
+		}
 		return false;
 	}
 	if (!page->writable && write)
