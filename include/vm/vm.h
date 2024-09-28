@@ -102,6 +102,7 @@ struct fileReader
 	size_t pageReadBytes;
 	size_t pageZeroBytes;
 	off_t offset;
+	int mappedCnt;
 };
 
 #include "threads/thread.h"

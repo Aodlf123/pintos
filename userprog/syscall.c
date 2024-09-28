@@ -14,6 +14,7 @@
 #include "threads/palloc.h"
 #include "threads/synch.h"
 #include <string.h>
+#include "vm/vm.h"
 
 void syscall_entry(void);
 void syscall_handler(struct intr_frame *);
@@ -173,10 +174,10 @@ int filesize(int fd)
 int read(int fd, void *buffer, unsigned size)
 {
 	isLegalAddr(buffer);
-	#ifdef VM
+#ifdef VM
 	if (!spt_find_page(&thread_current()->spt, pg_round_down(buffer))->writable)
 		exit(-1);
-	#endif
+#endif
 	if (isFileOpened(fd))
 	{
 		struct file *target = thread_current()->descriptors[fd];
@@ -267,6 +268,25 @@ tid_t wait(tid_t pid)
 	return process_wait(pid);
 }
 
+void *mmap(void *addr, size_t length, int writable, int fd, off_t offset)
+{
+	if (!isFileOpened(fd) || !is_user_vaddr(addr) || !is_user_vaddr(addr + length) || pg_ofs(addr) != 0)
+		return NULL;
+
+	struct file *target = thread_current()->descriptors[fd];
+
+	if (file_length(target) == 0 || length <= 0)
+		return NULL;
+
+	return do_mmap(addr, length, writable, target, offset);
+}
+
+void munmap(void *addr) {
+	if (pg_ofs(addr) != 0)
+		return;
+	do_munmap(addr);
+}
+
 /* The main system call interface */
 void syscall_handler(struct intr_frame *f)
 {
@@ -316,6 +336,12 @@ void syscall_handler(struct intr_frame *f)
 		break;
 	case SYS_CLOSE:
 		close(f->R.rdi);
+		break;
+	case SYS_MMAP:
+		f->R.rax = mmap(f->R.rdi, f->R.rsi, f->R.rdx, f->R.r10, f->R.r8);
+		break;
+	case SYS_MUNMAP:
+		munmap(f->R.rdi);
 		break;
 	}
 }

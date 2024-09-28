@@ -152,6 +152,7 @@ bool spt_insert_page(struct supplemental_page_table *spt UNUSED,
 
 void spt_remove_page(struct supplemental_page_table *spt, struct page *page)
 {
+	hash_delete(&spt->table, &page->hash_elem);
 	vm_dealloc_page(page);
 	return true;
 }
@@ -188,7 +189,7 @@ vm_get_frame(void)
 	/* TODO: Fill this function. */
 	//	준용 추가
 	frame = malloc(sizeof(struct frame));
-	frame->kva = palloc_get_page(PAL_USER);
+	frame->kva = palloc_get_page(PAL_USER | PAL_ZERO);
 	frame->page = NULL;
 
 	ASSERT(frame != NULL);
@@ -200,7 +201,7 @@ vm_get_frame(void)
 static void
 vm_stack_growth(void *addr)
 {
-	uint64_t tempBottom = thread_current()->stackBottom;
+	uint64_t tempBottom = thread_current()->stkBottom;
 	void *newBottom = pg_round_down(addr);
 	while (tempBottom != newBottom && tempBottom > USER_STACK - STACK_LIMIT)
 	{
@@ -208,7 +209,7 @@ vm_stack_growth(void *addr)
 		vm_alloc_page(VM_ANON, tempBottom, true);
 		vm_claim_page(tempBottom);
 	}
-	thread_current()->stackBottom = newBottom;
+	thread_current()->stkBottom = newBottom;
 }
 
 /* Handle the fault on write_protected page */
@@ -223,14 +224,14 @@ bool vm_try_handle_fault(struct intr_frame *f UNUSED, void *addr,
 {
 	struct supplemental_page_table *spt = &thread_current()->spt;
 	struct page *page = NULL;
-
 	/* TODO: Validate the fault */
+
 	if (is_kernel_vaddr(addr) || (!not_present) || addr == NULL || addr > USER_STACK)
 	{
 		return false;
 	}
 	/* TODO: Your code goes here */
-	page = spt_find_page(spt, addr - pg_ofs(addr));
+	page = spt_find_page(spt, pg_round_down(addr));
 	if (page == NULL)
 	{
 		if (addr > USER_STACK - STACK_LIMIT && addr >= f->rsp - 8)
@@ -244,7 +245,6 @@ bool vm_try_handle_fault(struct intr_frame *f UNUSED, void *addr,
 	{
 		return false;
 	}
-
 	return vm_do_claim_page(page);
 }
 

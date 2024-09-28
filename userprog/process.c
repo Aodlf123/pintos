@@ -755,7 +755,7 @@ lazy_load_segment(struct page *page, struct fileReader *aux)
 	/* TODO: VA is available when calling this function. */
 	struct fileReader *fr = aux;
 	file_seek(fr->target, fr->offset);
-	if (file_read(fr->target, page->frame->kva, fr->pageReadBytes) != (int)fr->pageReadBytes)
+	if (file_read(fr->target, page->frame->kva, fr->pageReadBytes) != fr->pageReadBytes)
 	{
 		palloc_free_page(page->frame->kva);
 		return false;
@@ -834,7 +834,7 @@ setup_stack(struct intr_frame *if_)
 	 * TODO: If success, set the rsp accordingly.
 	 * TODO: You should mark the page is stack. */
 	/* TODO: Your code goes here */
-	if (!vm_alloc_page(VM_ANON, stack_bottom, true))
+	if (!vm_alloc_page(VM_ANON | VM_MARKER_0, stack_bottom, true))
 	{
 		goto err;
 	}
@@ -843,7 +843,7 @@ setup_stack(struct intr_frame *if_)
 		goto err;
 	}
 	if_->rsp = USER_STACK;
-	thread_current()->stackBottom = stack_bottom;
+	thread_current()->stkBottom = stack_bottom;
 	success = true;
 err:
 	return success;
