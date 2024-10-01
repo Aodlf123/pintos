@@ -163,7 +163,25 @@ vm_get_victim(void)
 {
 	struct frame *victim = NULL;
 	/* TODO: The policy for eviction is up to you. */
+	struct hash_iterator hashIter;
 
+	hash_first(&hashIter, &thread_current()->spt.table);
+
+	while (hash_next(&hashIter))
+	{
+		struct page *page = hash_entry(hash_cur(&hashIter), struct page, hash_elem);
+		if (page->frame == NULL)
+			continue;
+
+		if (pml4_is_accessed(thread_current()->pml4, page->va))
+		{
+			pml4_set_accessed(thread_current()->pml4, page->va, false);
+		}
+		else
+		{
+			victim = page->frame;
+		}
+	}
 	return victim;
 }
 
@@ -174,8 +192,15 @@ vm_evict_frame(void)
 {
 	struct frame *victim UNUSED = vm_get_victim();
 	/* TODO: swap out the victim and return the evicted frame. */
-
-	return NULL;
+	while (victim == NULL) {
+		victim = vm_get_victim();
+		thread_yield();
+	}
+	if (!swap_out(victim->page))
+	{
+		victim = NULL;
+	}
+	return victim;
 }
 
 /* palloc() and get frame. If there is no available page, evict the page
@@ -190,6 +215,13 @@ vm_get_frame(void)
 	//	준용 추가
 	frame = malloc(sizeof(struct frame));
 	frame->kva = palloc_get_page(PAL_USER | PAL_ZERO);
+	if (frame == NULL || frame->kva == NULL)
+	{
+		palloc_free_page(frame->kva);
+		free(frame);
+		frame = vm_evict_frame();
+		memset(frame->kva, 0, PGSIZE);
+	}
 	frame->page = NULL;
 
 	ASSERT(frame != NULL);
@@ -226,7 +258,7 @@ bool vm_try_handle_fault(struct intr_frame *f UNUSED, void *addr,
 	struct page *page = NULL;
 	/* TODO: Validate the fault */
 
-	if (is_kernel_vaddr(addr) || (!not_present) || addr == NULL || addr > USER_STACK)
+	if (is_kernel_vaddr(addr) || (!not_present) || addr == NULL)
 	{
 		return false;
 	}
@@ -234,7 +266,7 @@ bool vm_try_handle_fault(struct intr_frame *f UNUSED, void *addr,
 	page = spt_find_page(spt, pg_round_down(addr));
 	if (page == NULL)
 	{
-		if (addr > USER_STACK - STACK_LIMIT && addr >= f->rsp - 8)
+		if (USER_STACK >= addr && addr > USER_STACK - STACK_LIMIT && addr >= f->rsp - 8)
 		{
 			vm_stack_growth(addr);
 			return true;
@@ -281,7 +313,6 @@ vm_do_claim_page(struct page *page)
 	//	준용 추가
 	pml4_set_page(thread_current()->pml4, page->va, frame->kva, page->writable);
 
-	//	09 / 21  - 여기 하던중 [swap 관련 함수가 bool 반환형을 갖지만 아직 완성이 안 됨 ...]
 	return swap_in(page, frame->kva);
 }
 
@@ -331,9 +362,16 @@ bool supplemental_page_table_copy(struct supplemental_page_table *dst,
 			}
 			continue;
 		}
-
-		if (!vm_alloc_page(VM_TYPE(source->operations->type), source->va, source->writable))
-			goto err;
+		if (VM_TYPE(source->operations->type) == VM_FILE)
+		{
+			if (!vm_alloc_page_with_initializer(VM_FILE, source->va, source->writable, NULL, source->uninit.aux))
+				goto err;
+		}
+		else
+		{
+			if (!vm_alloc_page(VM_ANON, source->va, source->writable))
+				goto err;
+		}
 		struct page *destination = spt_find_page(dst, source->va);
 		if (destination == NULL)
 			goto err;

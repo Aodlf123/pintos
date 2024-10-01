@@ -32,6 +32,7 @@ void unmapFileFromPage(struct page *page)
 		file_seek(fr->target, fr->offset);
 		file_write(fr->target, page->frame->kva, fr->pageReadBytes);
 	}
+	pml4_set_dirty(thread_current()->pml4, page->va, false);
 }
 
 bool mapFileToPage(struct page *page, struct fileReader *fr)
@@ -63,7 +64,7 @@ static bool
 file_backed_swap_in(struct page *page, void *kva)
 {
 	struct file_page *file_page = &page->file;
-	mapFileToPage(page, file_page->fr);
+	return mapFileToPage(page, file_page->fr);
 }
 
 /* Swap out the page by writeback contents to the file. */
@@ -73,6 +74,10 @@ file_backed_swap_out(struct page *page)
 	struct file_page *file_page UNUSED = &page->file;
 	//	여기 쓸 것
 	unmapFileFromPage(page);
+	pml4_set_accessed(thread_current()->pml4, page->va, false);
+	pml4_clear_page(thread_current()->pml4, page->va);
+	page->frame = NULL;
+	return true;
 }
 
 /* Destory the file backed page. PAGE will be freed by the caller. */
@@ -80,7 +85,15 @@ static void
 file_backed_destroy(struct page *page)
 {
 	struct file_page *file_page UNUSED = &page->file;
-	unmapFileFromPage(page);
+
+	if (page->frame != NULL) {
+		unmapFileFromPage(page);
+		palloc_free_page(page->frame->kva);
+		free(page->frame);
+	}
+
+	pml4_set_accessed(thread_current()->pml4, page->va, false);
+	pml4_clear_page(thread_current()->pml4, page->va);
 }
 
 /* Do the mmap */

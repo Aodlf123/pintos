@@ -80,10 +80,7 @@ put_user(uint8_t *udst, uint8_t byte)
 
 void isLegalAddr(void *ptr)
 {
-	struct thread *th = thread_current();
-	if (is_kernel_vaddr(ptr) || ptr == NULL || ptr > USER_STACK
-		//  || pml4_get_page(th->pml4, pg_round_down(ptr)) == NULL
-	)
+	if (is_kernel_vaddr(ptr) || ptr == NULL)
 	{
 		exit(-1);
 	}
@@ -270,18 +267,23 @@ tid_t wait(tid_t pid)
 
 void *mmap(void *addr, size_t length, int writable, int fd, off_t offset)
 {
-	if (!isFileOpened(fd) || !is_user_vaddr(addr) || !is_user_vaddr(addr + length) || pg_ofs(addr) != 0)
+	if (!isFileOpened(fd) || !is_user_vaddr(addr) || !is_user_vaddr(addr + length) || pg_ofs(addr) != 0 || length <= 0 || addr == NULL || pg_ofs(offset) != 0)
+		return NULL;
+
+	//	handling overflow
+	if (addr + length < length)
 		return NULL;
 
 	struct file *target = thread_current()->descriptors[fd];
 
-	if (file_length(target) == 0 || length <= 0)
+	if (file_length(target) == 0 || offset >= file_length(target))
 		return NULL;
 
 	return do_mmap(addr, length, writable, target, offset);
 }
 
-void munmap(void *addr) {
+void munmap(void *addr)
+{
 	if (pg_ofs(addr) != 0)
 		return;
 	do_munmap(addr);

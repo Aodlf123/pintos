@@ -29,6 +29,7 @@
         "vm.h": "c",
         "stdbool.h": "c",
         "stddef.h": "c",
-        "stdarg.h": "c"
+        "stdarg.h": "c",
+        "main.h": "c"
     }
 }
