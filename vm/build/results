@@ -138,4 +138,4 @@ pass tests/threads/priority-preempt
 pass tests/threads/priority-sema
 pass tests/threads/priority-condvar
 pass tests/threads/priority-donate-chain
-FAIL tests/vm/cow/cow-simple
+pass tests/vm/cow/cow-simple

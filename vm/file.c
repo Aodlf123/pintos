@@ -76,6 +76,7 @@ file_backed_swap_out(struct page *page)
 	unmapFileFromPage(page);
 	pml4_set_accessed(thread_current()->pml4, page->va, false);
 	pml4_clear_page(thread_current()->pml4, page->va);
+	//	cow 관련 문제 생길지도??
 	page->frame = NULL;
 	return true;
 }
@@ -88,7 +89,12 @@ file_backed_destroy(struct page *page)
 
 	if (page->frame != NULL) {
 		unmapFileFromPage(page);
-		palloc_free_page(page->frame->kva);
+		if (page->cowCntPtr == NULL || *page->cowCntPtr == 0) {
+			// palloc_free_page(page->frame->kva);
+			// free(page->cowCntPtr);
+		} else {
+			*page->cowCntPtr--;
+		}
 		free(page->frame);
 	}
 

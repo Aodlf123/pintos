@@ -39,6 +39,7 @@ bool anon_initializer(struct page *page, enum vm_type type, void *kva)
 
 	struct anon_page *anon_page = &page->anon;
 	anon_page->swapIdx = BITMAP_ERROR;
+	return true;
 }
 
 /* Swap in the page by read contents from the swap disk. */
@@ -94,7 +95,15 @@ anon_destroy(struct page *page)
 
 	if (page->frame != NULL)
 	{
-		palloc_free_page(page->frame->kva);
+		if (page->cowCntPtr == NULL || *page->cowCntPtr <= 0)
+		{
+			// palloc_free_page(page->frame->kva);
+			// free(page->cowCntPtr);
+		}
+		else
+		{
+			*page->cowCntPtr--;
+		}
 		free(page->frame);
 	}
 }

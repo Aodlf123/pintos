@@ -76,6 +76,8 @@ bool vm_alloc_page_with_initializer(enum vm_type type, void *upage, bool writabl
 
 		uninit_new(newPage, upage, init, type, aux, initialier);
 		newPage->writable = writable;
+		newPage->cowCntPtr = NULL;
+		newPage->cowWritable = false;
 		/* TODO: Insert the page into the spt. */
 		//	여기도
 		if (!spt_insert_page(spt, newPage))
@@ -192,7 +194,8 @@ vm_evict_frame(void)
 {
 	struct frame *victim UNUSED = vm_get_victim();
 	/* TODO: swap out the victim and return the evicted frame. */
-	while (victim == NULL) {
+	while (victim == NULL)
+	{
 		victim = vm_get_victim();
 		thread_yield();
 	}
@@ -248,6 +251,14 @@ vm_stack_growth(void *addr)
 static bool
 vm_handle_wp(struct page *page UNUSED)
 {
+	void *src = page->frame->kva;
+	free(page->frame);
+	page->frame = vm_get_frame();
+	page->frame->page = page;
+	memcpy(page->frame->kva, src, PGSIZE);
+	*page->cowCntPtr--;
+	page->cowCntPtr = NULL;
+	return pml4_set_page(thread_current()->pml4, page->va, page->frame->kva, true);
 }
 
 /* Return true on success */
@@ -258,7 +269,9 @@ bool vm_try_handle_fault(struct intr_frame *f UNUSED, void *addr,
 	struct page *page = NULL;
 	/* TODO: Validate the fault */
 
-	if (is_kernel_vaddr(addr) || (!not_present) || addr == NULL)
+	if (is_kernel_vaddr(addr) ||
+		// (!not_present) ||
+		addr == NULL)
 	{
 		return false;
 	}
@@ -273,9 +286,16 @@ bool vm_try_handle_fault(struct intr_frame *f UNUSED, void *addr,
 		}
 		return false;
 	}
-	if (!page->writable && write)
+	if (write)
 	{
-		return false;
+		if (!page->writable)
+		{
+			return false;
+		}
+		else if (page->cowWritable)
+		{
+			return vm_handle_wp(page);
+		}
 	}
 	return vm_do_claim_page(page);
 }
@@ -364,7 +384,7 @@ bool supplemental_page_table_copy(struct supplemental_page_table *dst,
 		}
 		if (VM_TYPE(source->operations->type) == VM_FILE)
 		{
-			if (!vm_alloc_page_with_initializer(VM_FILE, source->va, source->writable, NULL, source->uninit.aux))
+			if (!vm_alloc_page_with_initializer(VM_FILE, source->va, source->writable, NULL, source->file.fr))
 				goto err;
 		}
 		else
@@ -375,9 +395,33 @@ bool supplemental_page_table_copy(struct supplemental_page_table *dst,
 		struct page *destination = spt_find_page(dst, source->va);
 		if (destination == NULL)
 			goto err;
-		if (!vm_do_claim_page(destination))
+
+		struct frame *cowF = malloc(sizeof(struct frame));
+
+		if (source->cowCntPtr == NULL)
+		{
+			source->cowCntPtr = malloc(sizeof(int));
+			*source->cowCntPtr = 1;
+		}
+		else
+		{
+			*source->cowCntPtr++;
+		}
+		cowF->kva = source->frame->kva;
+		cowF->page = destination;
+		destination->frame = cowF;
+		destination->cowCntPtr = source->cowCntPtr;
+		destination->cowWritable = source->writable;
+
+		if (!pml4_set_page(thread_current()->pml4, destination->va, cowF->kva, false))
 			goto err;
-		memcpy(destination->frame->kva, source->frame->kva, PGSIZE);
+
+		if (!swap_in(destination, cowF->kva))
+			goto err;
+
+		// if (!vm_do_claim_page(destination))
+		// 	goto err;
+		// memcpy(destination->frame->kva, source->frame->kva, PGSIZE);
 	}
 
 	succ = true;

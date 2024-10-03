@@ -63,10 +63,13 @@ byte_to_sector(const struct inode *inode, off_t pos)
  * returns the same `struct inode'. */
 static struct list open_inodes;
 
+struct lock inodeLock;
+
 /* Initializes the inode module. */
 void inode_init(void)
 {
 	list_init(&open_inodes);
+	lock_init(&inodeLock);
 }
 
 /* Initializes an inode with LENGTH bytes of data and
@@ -106,6 +109,7 @@ bool inode_create(disk_sector_t sector, off_t length)
 		}
 		free(disk_inode);
 	}
+
 	return success;
 }
 
@@ -115,6 +119,7 @@ bool inode_create(disk_sector_t sector, off_t length)
 struct inode *
 inode_open(disk_sector_t sector)
 {
+
 	struct list_elem *e;
 	struct inode *inode;
 
@@ -147,6 +152,7 @@ inode_open(disk_sector_t sector)
 	lock_init(&inode->readLock);
 	//	여까지
 	disk_read(filesys_disk, inode->sector, &inode->data);
+
 	return inode;
 }
 
@@ -171,6 +177,7 @@ inode_get_inumber(const struct inode *inode)
  * If INODE was also a removed inode, frees its blocks. */
 void inode_close(struct inode *inode)
 {
+
 	/* Ignore null pointer. */
 	if (inode == NULL)
 		return;
@@ -289,7 +296,7 @@ off_t inode_write_at(struct inode *inode, const void *buffer_, off_t size,
 
 	if (inode->deny_write_cnt)
 		return 0;
-	
+
 	//	준용 추가
 	sema_down(&inode->writeSema);
 
